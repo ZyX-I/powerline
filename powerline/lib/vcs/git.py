@@ -88,9 +88,11 @@ try:
 				return '[DETACHED HEAD]'
 except ImportError:
 	from subprocess import Popen, PIPE
+	from os import devnull
 
 	def readlines(cmd, cwd):
-		p = Popen(cmd, shell=False, stdout=PIPE, stderr=PIPE, cwd=cwd)
+		with open(devnull, 'r+') as nul:
+			p = Popen(cmd, shell=False, stdin=nul, stdout=PIPE, stderr=PIPE, cwd=cwd)
 		p.stderr.close()
 		for line in p.stdout:
 			yield line[:-1].decode('utf-8')
