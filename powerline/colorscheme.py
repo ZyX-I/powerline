@@ -1,20 +1,38 @@
 # -*- coding: utf-8 -*-
 
 
+class Colors(object):
+	def __init__(self, config):
+		self._config = config
+
+	def __getattr__(self, attr):
+		color = self._config[attr]
+		try:
+			value = (color[0], int(color[1], 16))
+		except TypeError:
+			value = (color, cterm_to_hex[color])
+		self.__dict__[attr] = value
+		return value
+
+class Groups(object):
+	def __init__(self, modes):
+		pass
+
+class Modes(object):
+	def __init__(self, config, colors):
+		self._config = config
+		self._colors = colors
+
+	def __getattr__(self, attr):
+		pass
+
 class Colorscheme(object):
 	DEFAULT_MODE_KEY = '__default__'
 
-	def __init__(self, colorscheme):
+	def __init__(self, colorscheme_config):
 		'''Initialize a colorscheme.'''
-		self.colors = {}
+		self.colors = Colors(colorscheme_config.colors)
 		self.modes_groups = {self.DEFAULT_MODE_KEY: {}}
-
-		# Create a dict of color tuples with both a cterm and hex value
-		for color_name, color in colorscheme['colors'].items():
-			try:
-				self.colors[color_name] = (color[0], int(color[1], 16))
-			except TypeError:
-				self.colors[color_name] = (color, cterm_to_hex[color])
 
 		# Create highlighting groups for all modes
 		for group_name, group_props in colorscheme['groups'].items():
