@@ -1,11 +1,30 @@
 # -*- coding: utf-8 -*-
 
+ATTR_BOLD = 1
+ATTR_ITALIC = 2
+ATTR_UNDERLINE = 4
+
+def get_attr_flag(attributes):
+	'''Convert an attribute array to a renderer flag.'''
+	attr_flag = 0
+	if attributes:
+		if 'bold' in attributes:
+			attr_flag |= ATTR_BOLD
+		if 'italic' in attributes:
+			attr_flag |= ATTR_ITALIC
+		if 'underline' in attributes:
+			attr_flag |= ATTR_UNDERLINE
+	return attr_flag
+
+def get_translated_color(color_translations, color):
+	return color_translations[color] or color
+
 
 class Colors(object):
 	def __init__(self, config):
 		self._config = config
 
-	def __getattr__(self, attr):
+	def __getitem__(self, attr):
 		color = self._config[attr]
 		try:
 			value = (color[0], int(color[1], 16))
@@ -14,69 +33,75 @@ class Colors(object):
 		self.__dict__[attr] = value
 		return value
 
-class Groups(object):
-	def __init__(self, modes):
-		pass
 
-class Modes(object):
-	def __init__(self, config, colors):
-		self._config = config
+class Highlight(object):
+	def __init__(self, colors, config):
+		self.fg = colors[config['fg']]
+		self.bg = colors[config['bg']]
+		self.attr = get_attr_flag(config['attr'])
+
+
+class Group(object):
+	def __init__(self, colors, group, group_config, translations):
+		self.group = group
+		self.group_config = group_config
+		self.translations = translations
+		self.colors = colors
+		self.cache = {}
+
+	def __getitem__(self, mode):
+		if mode in self.cache:
+			return self.cache[mode]
+		value = None
+		if mode:
+			if self.translations and mode in self.translations:
+				translations = self.translations[mode]
+				if translations.groups and self.group in translations.groups:
+					group_config = {}
+					group_translation = translations.group[self.group]
+					group_config['fg'] = group_translation.fg
+					group_config['bg'] = group_translation.bg
+					group_config['attr'] = group_translation.attr
+					value = Highlight(self.colors, group_config)
+				elif translations.colors:
+					group_config = {}
+					group_config['fg'] = get_translated_color(translations.colors, self.group_config.fg)
+					group_config['bg'] = get_translated_color(translations.colors, self.group_config.bg)
+					group_config['attr'] = self.group_config.attr
+					value = Highlight(self.colors, group_config)
+		if not value:
+			value = Highlight(self.colors, self.group_config)
+		self.cache[mode] = value
+		return value
+
+
+class Groups(object):
+	def __init__(self, colors, groups_config, translations):
+		self._groups_config = groups_config
+		self._translations = translations
 		self._colors = colors
 
-	def __getattr__(self, attr):
-		pass
+	def __getattr__(self, group):
+		group_config = self._groups_config[group]
+		if not group_config:
+			raise AttributeError('Highlighting group `{0}\' not found in colorscheme'.format(group))
+		self.__dict__[group] = Group(self._colors, group, group_config, self._translations)
+		return self.__dict__[group]
+
+	def __getitem__(self, group):
+		return getattr(self, group)
+
 
 class Colorscheme(object):
-	DEFAULT_MODE_KEY = '__default__'
-
 	def __init__(self, colorscheme_config):
 		'''Initialize a colorscheme.'''
 		self.colors = Colors(colorscheme_config.colors)
-		self.modes_groups = {self.DEFAULT_MODE_KEY: {}}
-
-		# Create highlighting groups for all modes
-		for group_name, group_props in colorscheme['groups'].items():
-			group_attr_flag = self._get_attr_flag(group_props.get('attr', []))
-			self.modes_groups[self.DEFAULT_MODE_KEY][group_name] = {
-				'fg': self.colors[group_props['fg']],
-				'bg': self.colors[group_props['bg']],
-				'attr': group_attr_flag,
-				}
-
-			# Create mode-specific highlighting for this group
-			for mode, translations in colorscheme.get('mode_translations', {}).items():
-				if not mode in self.modes_groups:
-					self.modes_groups[mode] = {}
-				if group_name in translations.get('groups', {}):
-					# Override entire group if present in the translations group dict
-					self.modes_groups[mode][group_name] = {
-						'fg': self.colors[translations['groups'][group_name]['fg']],
-						'bg': self.colors[translations['groups'][group_name]['bg']],
-						'attr': self._get_attr_flag(translations['groups'][group_name].get('attr', [])),
-						}
-				else:
-					# Fallback to color translations from the translations colors dict
-					self.modes_groups[mode][group_name] = {
-						'fg': self.colors[translations.get('colors', {}).get(group_props['fg'], group_props['fg'])],
-						'bg': self.colors[translations.get('colors', {}).get(group_props['bg'], group_props['bg'])],
-						'attr': group_attr_flag,
-						}
+		self.modes_groups = {None : {}}
+		self.groups = Groups(self.colors, colorscheme_config.groups, colorscheme_config.mode_translations)
 
 	def get_group_highlighting(self, group):
 		'''Return highlighting information for all modes of a highlighting group.'''
-		group_highlighting = {}
-		for mode, mode_group in self.modes_groups.items():
-			try:
-				group_highlighting[mode] = mode_group[group]
-			except TypeError:
-				for try_group in group:
-					if try_group in self.modes_groups[mode]:
-						group_highlighting[mode] = mode_group[try_group]
-						break
-			finally:
-				if mode not in group_highlighting:
-					raise KeyError('Highlighting groups not found in colorscheme: {0}'.format(group))
-		return group_highlighting
+		return self.groups[group]
 
 	def get_highlighting(self, group, mode=None):
 		'''Return highlighting information for a highlighting group and mode.
@@ -84,28 +109,7 @@ class Colorscheme(object):
 		If no mode is specified, or the mode doesn't exist, highlighting for
 		the default mode is returned.
 		'''
-		if not mode or mode not in self.modes_groups:
-			mode = self.DEFAULT_MODE_KEY
-		try:
-			return self.modes_groups[mode][group]
-		except TypeError:
-			for try_group in group:
-				if try_group in self.modes_groups[mode]:
-					return self.modes_groups[mode][try_group]
-			raise KeyError('Highlighting groups not found in colorscheme: {0}'.format(group))
-		return self.modes_groups[mode][group]
-
-	def _get_attr_flag(self, attributes):
-		'''Convert an attribute array to a renderer flag.'''
-		from powerline.renderer import Renderer
-		attr_flag = 0
-		if 'bold' in attributes:
-			attr_flag |= Renderer.ATTR_BOLD
-		if 'italic' in attributes:
-			attr_flag |= Renderer.ATTR_ITALIC
-		if 'underline' in attributes:
-			attr_flag |= Renderer.ATTR_UNDERLINE
-		return attr_flag
+		return self.groups[group][mode]
 
 cterm_to_hex = {
 	16: 0x000000, 17: 0x00005f, 18: 0x000087, 19: 0x0000af, 20: 0x0000d7, 21: 0x0000ff,

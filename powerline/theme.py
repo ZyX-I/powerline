@@ -13,7 +13,8 @@ except NameError:
 
 
 class Theme(object):
-	def __init__(self, config, ext_config):
+	def __init__(self, config, ext, segment_info):
+		ext_config = config.ext[ext]
 		theme_config = ext_config.theme
 		self.colorscheme = Colorscheme(ext_config.colorscheme)
 		self.dividers = theme_config.dividers or config.dividers
@@ -28,11 +29,13 @@ class Theme(object):
 		self.segment_info = segment_info
 		get_segment = Segment(ext, config.paths, theme_config.default_module).get
 		for side in ['left', 'right']:
-			self.segments[side].extend((get_segment(segment, side) for segment in theme_config.segments.get(side, [])))
+			segments_config = theme_config.segments[side]
+			if segments_config:
+				self.segments[side].extend((get_segment(segment, side) for segment in segments_config))
 
 	def get_divider(self, side='left', type='soft'):
 		'''Return segment divider.'''
-		return getattr(getattr(self.dividers, side), type)
+		return self.dividers[side][type]
 
 	def add_highlight(self, segment):
 		segment['highlight'] = self.colorscheme.get_group_highlighting(segment['highlight_group'])

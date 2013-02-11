@@ -6,14 +6,13 @@ import os
 import sys
 
 from powerline.colorscheme import Colorscheme
-from powerline.matcher import Matcher
 from powerline.lib import underscore_to_camelcase
 from powerline.config import CommonConfig, search_paths
 
 
 class Powerline(object):
-	def __init__(self, ext, renderer_module=None, segment_info=None):
-		self.config = CommonConfig()
+	def __init__(self, ext, override={}, renderer_module=None, segment_info=None):
+		config = CommonConfig(override)
 		sys.path[:0] = search_paths
 
 		# Load and initialize extension renderer
@@ -25,7 +24,7 @@ class Powerline(object):
 		except ImportError as e:
 			sys.stderr.write('Error while importing renderer module: {0}\n'.format(e))
 			sys.exit(1)
-		self.renderer = Renderer(config, getattr(config.ext, ext))
+		self.renderer = Renderer(config, ext, segment_info)
 
 	def add_local_theme(self, key, config):
 		'''Add local themes at runtime (e.g. during vim session).

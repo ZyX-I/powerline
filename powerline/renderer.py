@@ -1,21 +1,18 @@
 # -*- coding: utf-8 -*-
 
-from powerline.colorscheme import Colorscheme
 from powerline.theme import Theme
 
 
 class Renderer(object):
-	ATTR_BOLD = 1
-	ATTR_ITALIC = 2
-	ATTR_UNDERLINE = 4
-
 	TERM_24BIT_COLORS = False
 
-	def __init__(self, config, ext_config):
-		self.theme = Theme(config, ext_config)
-		self.config.local_themes = ext_config.local_themes
-		self.local_themes = local_themes
-		self.theme_kwargs = theme_kwargs
+	def __init__(self, config, ext, segment_info):
+		self.ext = ext
+		self.segment_info = segment_info
+		self.theme = Theme(config, ext, segment_info)
+		self.config = config.ext[ext]
+		self.local_themes = self.config.local_themes
+		self.themes = {}
 		self.TERM_24BIT_COLORS = config.term_24bit_colors
 
 	def add_local_theme(self, matcher, theme):
@@ -24,12 +21,14 @@ class Renderer(object):
 		self.local_themes[matcher] = theme
 
 	def get_theme(self):
-		for matcher in self.local_themes.keys():
+		for matcher, theme_config in self.local_themes:
 			if matcher():
-				match = self.local_themes[matcher]
-				if 'config' in match:
-					match['theme'] = Theme(theme_config=match.pop('config'), **self.theme_kwargs)
-				return match['theme']
+				if matcher in self.themes:
+					return self.themes[matcher]
+				else:
+					theme = Theme(theme_config, self.ext, self.segment_info)
+					self.themes[matcher] = theme
+					return theme
 		else:
 			return self.theme
 
@@ -93,7 +92,7 @@ class Renderer(object):
 		'''
 		segments_len = len(segments)
 		try:
-			mode = mode if mode in segments[0]['highlight'] else Colorscheme.DEFAULT_MODE_KEY
+			mode = mode if mode in segments[0]['highlight'] else None
 		except IndexError:
 			pass
 
