@@ -5,12 +5,15 @@ from __future__ import absolute_import
 from powerline.bindings.vim import vim_get_func
 from powerline.renderer import Renderer
 from powerline.colorscheme import ATTR_BOLD, ATTR_ITALIC, ATTR_UNDERLINE
+from itertools import product
 
 import vim
 
 vim_mode = vim_get_func('mode')
 vim_getwinvar = vim_get_func('getwinvar')
 vim_setwinvar = vim_get_func('setwinvar')
+vim_hlID = vim_get_func('hlID', rettype=int)
+vim_synIDattr = vim_get_func('synIDattr')
 
 
 class VimRenderer(Renderer):
@@ -41,6 +44,7 @@ class VimRenderer(Renderer):
 		segment_info['buffer'] = segment_info['window'].buffer
 		segment_info['bufnr'] = segment_info['buffer'].number
 		winwidth = segment_info['window'].width
+		self.checked_hlID = False
 		statusline = super(VimRenderer, self).render(mode, winwidth, segment_info=segment_info, matcher_info=segment_info)
 		return statusline
 
@@ -50,6 +54,24 @@ class VimRenderer(Renderer):
 	@staticmethod
 	def escape(string):
 		return string.replace('%', '%%')
+
+	COLOR_ATTRS = [v for v in product(('cterm', 'gui'), ('fg', 'bg'))]
+
+	def hl_defined(self, key):
+		if key in self.hl_groups:
+			if self.checked_hlID:
+				return True
+			else:
+				self.checked_hlID = True
+				hl_group = self.hl_groups[key]
+				hlid = vim_hlID(hl_group['name'])
+				if hlid:
+					r = (any((vim_synIDattr(hlid, attr, term) == hl_group[term+attr] for term, attr in self.COLOR_ATTRS if hl_group[term+attr])) or
+							(len(hl_group['attr']) > 1 and int(vim_synIDattr(hlid, hl_group['attr'][1])) == 1))
+					if not r:
+						self.reset_highlight()
+					return r
+		return False
 
 	def hlstyle(self, fg=None, bg=None, attr=None):
 		'''Highlight a segment.
@@ -62,12 +84,12 @@ class VimRenderer(Renderer):
 		if not attr and not bg and not fg:
 			return ''
 
-		if not (fg, bg, attr) in self.hl_groups:
+		if not self.hl_defined((fg, bg, attr)):
 			hl_group = {
-				'ctermfg': 'NONE',
-				'guifg': 'NONE',
-				'ctermbg': 'NONE',
-				'guibg': 'NONE',
+				'ctermfg': None,
+				'guifg': None,
+				'ctermbg': None,
+				'guibg': None,
 				'attr': ['NONE'],
 				'name': '',
 				}
@@ -95,9 +117,9 @@ class VimRenderer(Renderer):
 			vim.command('hi {group} ctermfg={ctermfg} guifg={guifg} guibg={guibg} ctermbg={ctermbg} cterm={attr} gui={attr}'.format(
 					group=hl_group['name'],
 					ctermfg=hl_group['ctermfg'],
-					guifg='#{0:06x}'.format(hl_group['guifg']) if hl_group['guifg'] != 'NONE' else 'NONE',
+					guifg='#{0:06x}'.format(hl_group['guifg']) if hl_group['guifg'] else 'NONE',
 					ctermbg=hl_group['ctermbg'],
-					guibg='#{0:06x}'.format(hl_group['guibg']) if hl_group['guibg'] != 'NONE' else 'NONE',
+					guibg='#{0:06x}'.format(hl_group['guibg']) if hl_group['guibg'] else 'NONE',
 					attr=','.join(hl_group['attr']),
 				))
 		return '%#' + self.hl_groups[(fg, bg, attr)]['name'] + '#'
