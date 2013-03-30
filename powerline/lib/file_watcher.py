@@ -9,7 +9,7 @@ import sys
 import errno
 from powerline.lib.time import monotonic
 from time import sleep
-from threading import RLock
+from threading import Thread, RLock
 
 
 class INotifyError(Exception):
@@ -273,6 +273,86 @@ class StatWatch(object):
 			self.watches.clear()
 
 
+can_use_qt_watcher = True
+qt_app = None
+try:
+	from PySide.QtCore import QFileSystemWatcher, QCoreApplication
+except ImportError:
+	try:
+		from PyQt4.QtCore import QFileSystemWatcher, QCoreApplication
+	except ImportError:
+		can_use_qt_watcher = False
+
+def launch_qt_application():
+	global qt_app
+	global qt_thread
+	if not qt_app:
+		qt_app = QCoreApplication([])
+		qt_thread = Thread(target=qt_app.exec_)
+
+if can_use_qt_watcher:
+	class QtWatcher(object):
+		is_stat_based = False
+
+		def __init__(self, expire_time):
+			launch_qt_application()
+			self.watcher = QFileSystemWatcher(parent=qt_app)
+			self.watcher.fileChanged.connect(self.fileChanged)
+			self.watcher.directoryChanged.connect(self.fileChanged)
+			self.events = set()
+			self.events_lock = RLock()
+			self.lock = RLock()
+			self.watched_paths = {}
+			self.expire_time = expire_time
+
+		def watch(self, path):
+			self.watcher.addPath(path)
+			# According to the documentation once limit is reached message is 
+			# printed to stderr which means that we have to use the following 
+			# code to check whether previous line actually worked:
+			if path not in self.watched_paths:
+				if path not in self.watcher.files() and path not in self.watcher.directories():
+					raise OSError('Failed to add path to watcher')
+			self.watched_paths[path] = monotonic()
+
+		def unwatch(self, path):
+			self.watcher.removePath(path)
+			self.watched_paths.pop(path)
+
+		def fileChanged(self, path):
+			with self.events_lock:
+				self.events.add(path)
+
+		def expire_watches(self):
+			with self.lock:
+				now = monotonic()
+				for path, last_time in self.watched_paths.items():
+					if last_time - now > self.expire_time:
+						self.unwatch(path)
+
+		def __call__(self, path):
+			if path not in self.watched_paths:
+				self.watch(path)
+				return True
+			self.expire_watches()
+			try:
+				with self.events_lock:
+					self.events.remove(path)
+			except KeyError:
+				return False
+			else:
+				# Once path was renamed or removed it needs to be rewatched 
+				# again.
+				self.watch(path)
+				return True
+
+		def close(self):
+			self.watcher.removePaths(self.watcher.files())
+			self.watcher.removePaths(self.watcher.directories())
+			with self.lock:
+				self.watched_paths.clear()
+
+
 def create_file_watcher(use_stat=False, expire_time=10):
 	'''
 	Create an object that can watch for changes to specified files. To use:
@@ -288,6 +368,8 @@ def create_file_watcher(use_stat=False, expire_time=10):
 	'''
 	if use_stat:
 		return StatWatch()
+	if can_use_qt_watcher:
+		return QtWatcher(expire_time=expire_time)
 	try:
 		return get_inotify(expire_time=expire_time)
 	except INotifyError:
