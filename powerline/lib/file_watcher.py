@@ -283,12 +283,24 @@ except ImportError:
 	except ImportError:
 		can_use_qt_watcher = False
 
+
+def eventloop():
+	global qt_app
+	while True:
+		qt_app.processEvents()
+		sleep(1)
+
+
 def launch_qt_application():
 	global qt_app
 	global qt_thread
 	if not qt_app:
-		qt_app = QCoreApplication([])
-		qt_thread = Thread(target=qt_app.exec_)
+		qt_app = QCoreApplication.instance()
+		if not qt_app:
+			qt_app = QCoreApplication([])
+			qt_thread = Thread(target=eventloop)
+			qt_thread.daemon = True
+			qt_thread.start()
 
 if can_use_qt_watcher:
 	class QtWatcher(object):
@@ -306,13 +318,17 @@ if can_use_qt_watcher:
 			self.expire_time = expire_time
 
 		def watch(self, path):
-			self.watcher.addPath(path)
-			# According to the documentation once limit is reached message is 
-			# printed to stderr which means that we have to use the following 
-			# code to check whether previous line actually worked:
+			if not os.path.exists(path):
+				return
 			if path not in self.watched_paths:
 				if path not in self.watcher.files() and path not in self.watcher.directories():
-					raise OSError('Failed to add path to watcher')
+					self.watcher.addPath(path)
+					# According to the documentation once limit is reached 
+					# message is printed to stderr which means that we have to 
+					# use the following code to check whether previous line 
+					# actually worked:
+					if path not in self.watcher.files() and path not in self.watcher.directories():
+						raise OSError('Failed to add path to watcher')
 			self.watched_paths[path] = monotonic()
 
 		def unwatch(self, path):
@@ -322,6 +338,10 @@ if can_use_qt_watcher:
 		def fileChanged(self, path):
 			with self.events_lock:
 				self.events.add(path)
+			with self.lock:
+				# File was deleted
+				if not os.path.exists(path):
+					self.watched_paths.pop(path)
 
 		def expire_watches(self):
 			with self.lock:
