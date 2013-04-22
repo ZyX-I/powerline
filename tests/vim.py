@@ -25,6 +25,19 @@ def _set_thread_id():
 _set_thread_id()
 
 
+def _get_vim_error():
+	import sys
+	if sys.version_info >= (3,):
+		class VimError(Exception):
+			pass
+		return VimError
+	else:
+		return 'vim.error'
+
+
+error = _get_vim_error()
+
+
 def _vim(func):
 	from functools import wraps
 	from threading import current_thread
@@ -178,7 +191,10 @@ def bindeval(expr):
 	import re
 	match = re.compile(r'^function\("([^"\\]+)"\)$').match(expr)
 	if match:
-		return globals()['_emul_' + match.group(1)]
+		try:
+			return globals()['_emul_' + match.group(1)]
+		except KeyError:
+			raise error
 	else:
 		raise NotImplementedError
 
