@@ -126,10 +126,11 @@ class Theme(object):
 							draw_inner_divider = segment_copy.pop('draw_inner_divider', None)
 							append(segment_copy)
 					else:
+						segment = segment.copy()
 						segment['contents'] = contents
 						parsed_segments.append(segment)
 				elif segment['width'] == 'auto' or (segment['type'] == 'string' and segment['contents'] is not None):
-					parsed_segments.append(segment)
+					parsed_segments.append(segment.copy())
 				else:
 					continue
 			for segment in parsed_segments:
