@@ -1,5 +1,7 @@
 # vim:fileencoding=utf-8:noet
 
+from __future__ import unicode_literals
+
 from .segment import gen_segment_getter
 
 
@@ -47,6 +49,8 @@ class Theme(object):
 		get_segment = gen_segment_getter(pl, ext, common_config['paths'], theme_configs, theme_config.get('default_module'))
 		for side in ['left', 'right']:
 			for segment in theme_config['segments'].get(side, []):
+				# from tests.frozendict import tofrozen
+				# segment = tofrozen(get_segment(segment, side))
 				segment = get_segment(segment, side)
 				if not run_once:
 					if segment['startup']:
@@ -95,9 +99,14 @@ class Theme(object):
 
 					if contents is None:
 						continue
-					if isinstance(contents, list):
+					elif isinstance(contents, (unicode, bytes)):
+						segment = segment.copy()
+						segment['contents'] = contents
+						parsed_segments.append(segment)
+					else:
 						segment_base = segment.copy()
 						if contents:
+							contents = list(contents)
 							draw_divider_position = -1 if side == 'left' else 0
 							for key, i, newval in (
 								('before', 0, ''),
@@ -105,11 +114,14 @@ class Theme(object):
 								('draw_soft_divider', draw_divider_position, True),
 								('draw_hard_divider', draw_divider_position, True),
 							):
+								contents[i] = contents[i].copy()
 								try:
 									contents[i][key] = segment_base.pop(key)
 									segment_base[key] = newval
 								except KeyError:
 									pass
+						else:
+							continue
 
 						draw_inner_divider = None
 						if side == 'right':
@@ -125,16 +137,12 @@ class Theme(object):
 								segment_copy['draw_soft_divider'] = draw_inner_divider
 							draw_inner_divider = segment_copy.pop('draw_inner_divider', None)
 							append(segment_copy)
-					else:
-						segment = segment.copy()
-						segment['contents'] = contents
-						parsed_segments.append(segment)
 				elif segment['width'] == 'auto' or (segment['type'] == 'string' and segment['contents'] is not None):
 					parsed_segments.append(segment.copy())
 				else:
 					continue
 			for segment in parsed_segments:
-				segment['contents'] = segment['before'] + u(segment['contents'] if segment['contents'] is not None else '') + segment['after']
+				segment['contents'] = segment['before'] + u(segment['contents'] or '') + segment['after']
 				# Align segment contents
 				if segment['width'] and segment['width'] != 'auto':
 					if segment['align'] == 'l':

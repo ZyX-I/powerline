@@ -30,7 +30,7 @@ def pick_gradient_value(grad_list, gradient_level):
 
 
 def hl_iter(value):
-	if type(value) is list:
+	if isinstance(value, (list, tuple)):
 		for v in value:
 			yield v
 	else:
