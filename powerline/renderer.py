@@ -92,7 +92,7 @@ class Renderer(object):
 
 	def strwidth(self, string):
 		'''Function that returns string width.
-		
+
 		Is used to calculate the place given string occupies when handling 
 		``width`` argument to ``.render()`` method. Must take east asian width 
 		into account.
@@ -106,7 +106,7 @@ class Renderer(object):
 
 	def get_theme(self, matcher_info):
 		'''Get Theme object.
-		
+
 		Is to be overridden by subclasses to support local themes, this variant 
 		only returns ``.theme`` attribute.
 
@@ -133,7 +133,7 @@ class Renderer(object):
 
 	def get_segment_info(self, segment_info):
 		'''Get segment information.
-		
+
 		Must return a dictionary containing at least ``home``, ``environ`` and 
 		``getcwd`` keys (see documentation for ``segment_info`` attribute). This 
 		implementation merges ``segment_info`` dictionary passed to 
