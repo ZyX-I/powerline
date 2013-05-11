@@ -81,6 +81,9 @@ class SimpleRenderer(Renderer):
 		return '<{fg} {bg} {attr}>'.format(fg=fg and fg[0], bg=bg and bg[0], attr=attr)
 
 
+renderer = SimpleRenderer
+
+
 class TestPowerline(Powerline):
 	_created = False
 
@@ -92,7 +95,8 @@ class TestPowerline(Powerline):
 		return self.create_renderer_kwargs
 
 
-renderer = SimpleRenderer
+def get_config_loader():
+	return ConfigLoader(load=load_json_config, watcher=Watcher())
 
 
 def get_powerline(**kwargs):
@@ -100,7 +104,7 @@ def get_powerline(**kwargs):
 		ext='test',
 		renderer_module='tests.lib.config_mock',
 		logger=Logger(),
-		config_loader=ConfigLoader(load=load_json_config, watcher=Watcher()),
+		config_loader=get_config_loader(),
 		**kwargs
 	)
 
@@ -120,3 +124,12 @@ def swap_attributes(cfg_container, powerline_module, replaces):
 		setattr(powerline_module, attr, val)
 		replaces[attr] = old_val
 	return replaces
+
+
+def id(pl, result):
+	return result
+
+
+def id_si(pl, segment_info, result):
+	return eval(result)
+id_si.powerline_requires_segment_info = True
