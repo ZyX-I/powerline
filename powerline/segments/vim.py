@@ -273,7 +273,6 @@ def col_current(pl, segment_info):
 	return str(segment_info['window'].cursor[1] + 1)
 
 
-# TODO Add &textwidth-based gradient
 @window_cached
 def virtcol_current(pl, gradient=True):
 	'''Return current visual column with concealed characters ingored
@@ -306,6 +305,7 @@ def modified_buffers(pl, text='+ ', join_str=','):
 		return text + join_str.join(buffer_mod)
 	return None
 
+
 @requires_segment_info
 def branch(pl, segment_info, status_colors=False):
 	'''Return the current working branch.
@@ -333,6 +333,7 @@ def branch(pl, segment_info, status_colors=False):
 				'divider_highlight_group': 'branch:divider',
 			}]
 
+
 @requires_segment_info
 def file_vcs_status(pl, segment_info):
 	'''Return the VCS status for this buffer.
@@ -353,5 +354,5 @@ def file_vcs_status(pl, segment_info):
 				ret.append({
 					'contents': status,
 					'highlight_group': ['file_vcs_status_' + status, 'file_vcs_status'],
-					})
+				})
 			return ret
