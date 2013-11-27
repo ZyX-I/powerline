@@ -19,10 +19,10 @@ try:
 		from time import monotonic  # NOQA
 
 except ImportError:
-	import ctypes
-	import sys
-
 	try:
+		import ctypes
+		import sys
+
 		if sys.platform == 'win32':
 			# Windows only
 			GetTickCount64 = ctypes.windll.kernel32.GetTickCount64
