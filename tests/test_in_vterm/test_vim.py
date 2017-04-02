@@ -11,6 +11,7 @@ from difflib import ndiff
 from glob import glob1
 
 from powerline.lib.unicode import u
+from powerline.lib.dict import updated
 
 from tests.lib.terminal import ExpectProcess
 
@@ -54,7 +55,7 @@ def test_expected_result(p, expected_result, rows, row, print_logs):
 	return False
 
 
-def main(attempts=3):
+def test_one(env={}, vimrc_contents=None, input=None, addargs=[], attempts=3):
 	vterm_path = os.path.join(VTERM_TEST_DIR, 'path')
 	rows = 20
 	cols = 50
@@ -68,45 +69,58 @@ def main(attempts=3):
 
 	vimrc = os.path.join(VTERM_TEST_DIR, 'init.vim')
 
-	with open(vimrc, 'w') as vd:
-		vd.write('set laststatus=2\n')
-		vd.write('source powerline/bindings/vim/plugin/powerline.vim\n')
+	vimrc_contents = vimrc_contents or '''
+		set laststatus=2
+		set runtimepath=powerline/bindings/vim
+	'''
 
-	try:
-		p = ExpectProcess(
-			lib=lib,
-			rows=rows,
-			cols=cols,
-			cmd=vim_exe,
-			args=[
-				'-u', vimrc,
-			],
-			env={
-				'TERMINFO': os.path.join(VTERM_TEST_DIR, 'terminfo'),
-				'TERM': 'st-256color',
-				'PATH': vterm_path,
-				'SHELL': os.path.join(VTERM_TEST_DIR, 'path', 'bash'),
-				'POWERLINE_CONFIG_PATHS': os.path.abspath('powerline/config_files'),
-				'LD_LIBRARY_PATH': os.environ.get('LD_LIBRARY_PATH', ''),
-				'PYTHONPATH': os.environ.get('PYTHONPATH', ''),
-			},
-		)
-		p.start()
-		sleep(5)
-		ret = None
-		if not test_expected_result(p, ('', {}), rows, rows - 2, not attempts):
-			if attempts:
-				pass
-				# Will rerun main later.
-			else:
-				ret = False
-		elif ret is not False:
-			ret = True
-		if ret is not None:
-			return ret
-	finally:
-		p.send('\x1C\x0E:qa!\n')  # <C-\><C-n>:qa!<CR>
-	return main(attempts=(attempts - 1))
+	with open(vimrc, 'w') as vd:
+		vd.write(vimrc_contents)
+
+	while attempts > 0:
+		try:
+			p = ExpectProcess(
+				lib=lib,
+				rows=rows,
+				cols=cols,
+				cmd=vim_exe,
+				args=[
+					'-u', vimrc,
+					'-i', 'NONE',
+				] + addargs,
+				env=updated({
+					'TERMINFO': os.path.join(VTERM_TEST_DIR, 'terminfo'),
+					'TERM': 'st-256color',
+					'PATH': vterm_path,
+					'SHELL': os.path.join(VTERM_TEST_DIR, 'path', 'bash'),
+					'POWERLINE_CONFIG_PATHS': os.path.abspath('powerline/config_files'),
+					'LD_LIBRARY_PATH': os.environ.get('LD_LIBRARY_PATH', ''),
+					'PYTHONPATH': os.environ.get('PYTHONPATH', ''),
+				}, env),
+			)
+			p.start()
+			sleep(5)
+			if input:
+				p.send(input)
+				sleep(2)
+			ret = None
+			if not test_expected_result(p, ('', {}), rows, rows - 2, not attempts):
+				if attempts:
+					pass
+					# Will rerun main later.
+				else:
+					ret = False
+			elif ret is not False:
+				ret = True
+			if ret is not None:
+				return ret
+		finally:
+			p.send('\x1C\x0E:qa!\n')  # <C-\><C-n>:qa!<CR>
+		attempts -= 1
+
+
+def main():
+	test_one(env={'LANG': 'en_US.UTF-8'})
 
 
 if __name__ == '__main__':
