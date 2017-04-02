@@ -288,11 +288,10 @@ def main(attempts=3):
 		if ret is not None:
 			return ret
 	finally:
-		pass
-		#  check_call([tmux_exe, '-S', socket_path, 'kill-server'], env={
-			#  'PATH': vterm_path,
-			#  'LD_LIBRARY_PATH': os.environ.get('LD_LIBRARY_PATH', ''),
-		#  }, cwd=VTERM_TEST_DIR)
+		check_call([tmux_exe, '-S', socket_path, 'kill-server'], env={
+			'PATH': vterm_path,
+			'LD_LIBRARY_PATH': os.environ.get('LD_LIBRARY_PATH', ''),
+		}, cwd=VTERM_TEST_DIR)
 	return main(attempts=(attempts - 1))
 
 
